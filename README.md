@@ -1,24 +1,31 @@
-simple logging library for roblox
+Lightweight logging utility designed for the Roblox runtime environment.
 
-usage: 
+**Usage**
 
-regular roblox studio environment: 
+**Standard Roblox Studio context:**
 
-create a modulescript in replicatedfirst/replicatedstorage, paste the script there and require it from another script
+Create a `ModuleScript` within `ReplicatedFirst` or `ReplicatedStorage`, insert the library source, and require it from another script:
+
 ```lua
 local Logger = require("path to modulescript")
+
 Logger.level = Logger.LevelsInfo.DEBUG.level
+
 Logger.debug("Hello", "World")
 Logger.info("Hello", "World")
 Logger.warn("Hello", "World")
 Logger.error("Hello", "World")
 ```
-roblox executor environment:
 
-make a request to the source and evaluate it
+**Executor-based environment:**
+
+Dynamically retrieve and evaluate the source at runtime:
+
 ```lua
 local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()
+
 Logger.level = Logger.LevelsInfo.DEBUG.level
+
 Logger.debug("Hello", "World")
 Logger.info("Hello", "World")
 Logger.warn("Hello", "World")
