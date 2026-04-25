@@ -4,10 +4,18 @@ usage:
 regular roblox studio environment: create a modulescript paste the script there and require it from another like so
 ```lua
 local Logger = require("path to modulescript")
+Logger.level = Logger.LevelsInfo.DEBUG
 Logger.debug("Hello", "World")
+Logger.info("Hello", "World")
+Logger.warn("Hello", "World")
+Logger.error("Hello", "World")
 ```
 roblox executor environment:
 ```lua
-local Logger = local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()
+local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()
+Logger.level = Logger.LevelsInfo.DEBUG
 Logger.debug("Hello", "World")
+Logger.info("Hello", "World")
+Logger.warn("Hello", "World")
+Logger.error("Hello", "World")
 ```
