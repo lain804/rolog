@@ -7,7 +7,7 @@ regular roblox studio environment:
 create a modulescript in replicatedfirst/replicatedstorage, paste the script there and require it from another script
 ```lua
 local Logger = require("path to modulescript")
-Logger.level = Logger.LevelsInfo.DEBUG
+Logger.level = Logger.LevelsInfo.DEBUG.level
 Logger.debug("Hello", "World")
 Logger.info("Hello", "World")
 Logger.warn("Hello", "World")
@@ -18,7 +18,7 @@ roblox executor environment:
 make a request to the source and evaluate it
 ```lua
 local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()
-Logger.level = Logger.LevelsInfo.DEBUG
+Logger.level = Logger.LevelsInfo.DEBUG.level
 Logger.debug("Hello", "World")
 Logger.info("Hello", "World")
 Logger.warn("Hello", "World")
