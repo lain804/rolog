@@ -1,4 +1,4 @@
-local Logger = (function() local Logger = {
+local Logger = {
 	LevelsInfo = {
 		DEBUG = { level = 10, prefix = "[DEBUG]" },
 		INFO = { level = 20, prefix = "[INFO]" },
@@ -84,6 +84,4 @@ function Logger.error(...)
     end)
 end
 
-return Logger end)()
-
-Logger.debug("test")
+return Logger
