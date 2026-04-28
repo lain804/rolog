@@ -1,4 +1,4 @@
-local Logger = {
+local Logger = (function() local Logger = {
 	LevelsInfo = {
 		DEBUG = { level = 10, prefix = "[DEBUG]" },
 		INFO = { level = 20, prefix = "[INFO]" },
@@ -21,7 +21,7 @@ end
 
 local function addPrefixAndLine(args, levelInfo, stackLevel)
 	if Logger.lineNumber then
-		local line = debug.getinfo(stackLevel, "l")
+		local line = debug.getinfo(stackLevel, "l").currentline
 		prepend(args, ":" .. tostring(line))
 	end
 
@@ -84,4 +84,6 @@ function Logger.error(...)
     end)
 end
 
-return Logger
+return Logger end)()
+
+Logger.debug("test")
