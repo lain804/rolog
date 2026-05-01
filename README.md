@@ -1,4 +1,4 @@
-# roblox logger (lua)
+# roblox logger
 
 lightweight logging utility for the roblox runtime environment.
 
