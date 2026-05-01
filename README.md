@@ -1,11 +1,10 @@
-Lightweight logging utility designed for the Roblox runtime environment.
+# roblox logger (lua)
 
-**Usage**
+lightweight logging utility for the roblox runtime environment.
 
-**Standard Roblox Studio context:**
+## usage
 
-Create a `ModuleScript` within `ReplicatedFirst` or `ReplicatedStorage`, insert the library source, and require it from another script:
-
+**studio:**
 ```lua
 local Logger = require("path to modulescript")
 
@@ -17,10 +16,7 @@ Logger.warn("Hello", "World")
 Logger.error("Hello", "World")
 ```
 
-**Executor-based environment:**
-
-Dynamically retrieve and evaluate the source at runtime:
-
+**executors:**
 ```lua
 local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()
 
