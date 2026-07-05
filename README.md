@@ -9,7 +9,7 @@ Create a `ModuleScript` within `ReplicatedFirst` or `ReplicatedStorage`, insert 
 ```lua
 local Logger = require("path to modulescript")
 
-Logger.level = Logger.LevelsInfo.DEBUG.level
+Logger.Level = Logger.Levels.DEBUG.Level
 
 Logger.debug("Hello", "World")
 Logger.info("Hello", "World")
@@ -24,7 +24,7 @@ Dynamically retrieve and evaluate the source at runtime:
 ```lua
 local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()
 
-Logger.level = Logger.LevelsInfo.DEBUG.level
+Logger.Level = Logger.Levels.DEBUG.Level
 
 Logger.debug("Hello", "World")
 Logger.info("Hello", "World")

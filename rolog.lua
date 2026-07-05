@@ -1,14 +1,14 @@
 local Logger = {
-	LevelsInfo = {
-		DEBUG = { level = 10, prefix = "[DEBUG]" },
-		INFO = { level = 20, prefix = "[INFO]" },
-		WARN = { level = 30, prefix = "[WARNING]" },
-		ERROR = { level = 40, prefix = "[ERROR]" },
+	Levels = {
+		DEBUG = { Level = 10, Prefix = "[DEBUG]" },
+		INFO = { Level = 20, Prefix = "[INFO]" },
+		WARN = { Level = 30, Prefix = "[WARNING]" },
+		ERROR = { Level = 40, Prefix = "[ERROR]" },
 	},
 
-	traceback = true,
-	lineNumber = true,
-	level = 10,
+	Traceback = true,
+	LineNumber = true,
+	Level = 10,
 }
 
 local function prepend(t, value)
@@ -16,72 +16,73 @@ local function prepend(t, value)
 end
 
 local function shouldLog(levelInfo)
-	return Logger.level <= levelInfo.level
+	return Logger.Level <= levelInfo.Level
 end
 
-local function addPrefixAndLine(args, levelInfo, stackLevel)
-	if Logger.lineNumber then
-		local line = debug.getinfo(stackLevel, "l").currentline
-		prepend(args, ":" .. tostring(line))
+local function getCallerLine()
+	local callerInfo = debug.getinfo(3, "l")
+	return callerInfo and callerInfo.currentline
+end
+
+local function addPrefixAndLine(args, levelInfo, callerLine)
+	if Logger.LineNumber and callerLine then
+		prepend(args, ":" .. tostring(callerLine))
 	end
 
-	if levelInfo.prefix then
-		prepend(args, levelInfo.prefix)
+	if levelInfo.Prefix then
+		prepend(args, levelInfo.Prefix)
 	end
 end
 
-local function log(levelName, outputFn, stackLevel, ...)
-	local levelInfo = Logger.LevelsInfo[levelName]
+local function log(levelName, outputFn, callerLine, ...)
+	local levelInfo = Logger.Levels[levelName]
 
 	if not shouldLog(levelInfo) then
 		return
 	end
 
 	local args = { ... }
-	addPrefixAndLine(args, levelInfo, stackLevel)
+	addPrefixAndLine(args, levelInfo, callerLine)
 
 	outputFn(table.unpack(args))
 end
 
 function Logger.debug(...)
-	log("DEBUG", print, 3, ...)
+	log("DEBUG", print, getCallerLine(), ...)
 end
 
 function Logger.info(...)
-	log("INFO", print, 3, ...)
+	log("INFO", print, getCallerLine(), ...)
 end
 
 function Logger.warn(...)
-	log("WARN", warn, 3, ...)
+	log("WARN", warn, getCallerLine(), ...)
 end
 
 function Logger.error(...)
-	local levelInfo = Logger.LevelsInfo.ERROR
+	local levelInfo = Logger.Levels.ERROR
 
 	if not shouldLog(levelInfo) then
 		return
 	end
 
 	local args = { ... }
-
-	if levelInfo.prefix then
-		prepend(args, levelInfo.prefix)
-	end
+	addPrefixAndLine(args, levelInfo, getCallerLine())
 
 	for i, value in args do
 		args[i] = tostring(value)
 	end
 
-    local message = table.concat(args, " ")
+	local message = table.concat(args, " ")
 
-    if Logger.traceback then
-        local traceback = debug.traceback(nil, 2)
-        message = message .. "\n" .. traceback
-    end
+	if Logger.Traceback then
+		local traceback = debug.traceback(nil, 2)
+		message = message .. "\n" .. traceback
+	end
 
-    task.spawn(function()
-        error(message, 0)
-    end)
+	task.spawn(function()
+		error(message, 0)
+	end)
 end
 
 return Logger
