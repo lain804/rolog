@@ -1,6 +1,6 @@
 # roblox logger
 
-lightweight logging utility for the roblox runtime environment.
+Lua logging utility designed for roblox runtime environments.
 
 ## usage
 
