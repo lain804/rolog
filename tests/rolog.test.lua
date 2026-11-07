@@ -85,5 +85,119 @@ return function(createLogger)
 		end
 	end
 
+	for _, method in { "debug", "info", "warn", "error" } do
+		local logger, calls = setup()
+		logger.Traceback = false
+		logger.LineNumber = false
+		logger.Prefix = false
+		logger[method]()
+		equal(calls[1].args.n, method == "error" and 1 or 0)
+		if method == "error" then
+			equal(calls[1].args[1], "")
+		end
+	end
+
+	-- Opting into a separator stringifies every value, including nils.
+	for _, method in { "debug", "info", "warn", "error" } do
+		local logger, calls = setup()
+		logger.Traceback = false
+		logger.Separator = " | "
+		for _, level in logger.Levels do
+			level.Prefix = "[APP]"
+		end
+		local object = setmetatable({}, { __tostring = function() return "object" end })
+		local expectedLine = debug.info(1, "l") + 1
+		logger[method]("hello", nil, false, 42, object, nil)
+		equal(calls[1].args.n, 1)
+		equal(calls[1].args[1], "[APP] | :" .. expectedLine .. " | hello | nil | false | 42 | object | nil")
+
+		logger.LineNumber = false
+		logger.Prefix = false
+		logger.Separator = ""
+		logger[method]("hello", "world")
+		equal(calls[2].args[1], "helloworld")
+		logger[method]()
+		equal(calls[3].args[1], "")
+	end
+
+	for _, method in { "debug", "info", "warn", "error" } do
+		local logger, calls = setup()
+		logger.Traceback = false
+		logger.Separator = ", "
+		local entries = {}
+		logger.Formatter = function(entry)
+			table.insert(entries, entry)
+			return "custom: " .. entry.Message
+		end
+		local expectedLine = debug.info(1, "l") + 1
+		logger[method]("hello", nil, false)
+		equal(calls[1].args.n, 1)
+		equal(calls[1].args[1], "custom: hello, nil, false")
+		equal(entries[1].Level, string.upper(method))
+		equal(entries[1].Prefix, logger.Levels[string.upper(method)].Prefix)
+		equal(entries[1].LineNumber, expectedLine)
+
+		logger.LineNumber = false
+		logger.Prefix = false
+		logger.Separator = nil
+		logger[method](nil, "end")
+		equal(calls[2].args[1], "custom: nil end")
+		equal(entries[2].Prefix, nil)
+		equal(entries[2].LineNumber, nil)
+
+		logger.Formatter = nil
+		logger[method]("plain")
+		equal(calls[3].args[1], "plain")
+	end
+
+	do
+		local logger, calls = setup()
+		logger.LineNumber = false
+		logger.Formatter = function() return "formatted error" end
+		logger.error("hello")
+		assert(string.sub(calls[1].args[1], 1, 16) == "formatted error\n", "traceback follows formatting")
+		logger.Traceback = false
+		logger.error("hello")
+		equal(calls[2].args[1], "formatted error")
+	end
+
+	do
+		local logger, calls, environment = setup()
+		environment.debug = { info = function() return -1 end }
+		logger.info("hello")
+		equal(calls[1].args.n, 2)
+		equal(calls[1].args[2], "hello")
+	end
+
+	do
+		local logger, calls = setup()
+		logger.Level = logger.Levels.ERROR.Level + 1
+		logger.Formatter = function() error("filtered logs must not be formatted") end
+		local object = setmetatable({}, { __tostring = function() error("filtered value must not be converted") end })
+		logger.debug(object)
+		logger.info(object)
+		logger.warn(object)
+		logger.error(object)
+		equal(#calls, 0)
+	end
+
+	do
+		local logger, calls = setup()
+		logger.LineNumber = false
+		logger.Prefix = false
+		local object = {}
+		logger.info(object, nil)
+		equal(calls[1].args[1], object)
+		equal(calls[1].args.n, 2)
+	end
+
+	do
+		local logger = setup()
+		logger.Formatter = function() return nil end
+		local success, message = pcall(logger.info, "hello")
+		equal(success, false)
+		assert(string.find(message, "Logger.Formatter must return a string", 1, true))
+	end
+
 	print("All logger tests passed")
 end

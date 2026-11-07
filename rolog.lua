@@ -8,6 +8,9 @@ local Logger = {
 
 	Traceback = true,
 	LineNumber = true,
+	Prefix = true,
+	Separator = nil,
+	Formatter = nil,
 	Level = 10,
 }
 
@@ -37,9 +40,36 @@ local function addPrefixAndLine(args, levelInfo, callerLine)
 		prepend(args, ":" .. tostring(callerLine))
 	end
 
-	if levelInfo.Prefix then
+	if Logger.Prefix and levelInfo.Prefix then
 		prepend(args, levelInfo.Prefix)
 	end
+end
+
+local function joinArgs(args)
+	local parts = {}
+	for i = 1, args.n do
+		parts[i] = tostring(args[i])
+	end
+	return table.concat(parts, Logger.Separator or " ")
+end
+
+local function formatArgs(args, levelName, levelInfo, callerLine)
+	if Logger.Formatter then
+		local message = Logger.Formatter({
+			Level = levelName,
+			Prefix = Logger.Prefix and levelInfo.Prefix or nil,
+			LineNumber = callerLine,
+			Message = joinArgs(args),
+		})
+		assert(type(message) == "string", "Logger.Formatter must return a string")
+		return table.pack(message)
+	end
+
+	addPrefixAndLine(args, levelInfo, callerLine)
+	if Logger.Separator ~= nil then
+		return table.pack(joinArgs(args))
+	end
+	return args
 end
 
 local function log(levelName, outputFn, callerLine, ...)
@@ -49,8 +79,7 @@ local function log(levelName, outputFn, callerLine, ...)
 		return
 	end
 
-	local args = table.pack(...)
-	addPrefixAndLine(args, levelInfo, callerLine)
+	local args = formatArgs(table.pack(...), levelName, levelInfo, callerLine)
 
 	outputFn(table.unpack(args, 1, args.n))
 end
@@ -74,14 +103,8 @@ function Logger.error(...)
 		return
 	end
 
-	local args = table.pack(...)
-	addPrefixAndLine(args, levelInfo, getCallerLine())
-
-	for i = 1, args.n do
-		args[i] = tostring(args[i])
-	end
-
-	local message = table.concat(args, " ", 1, args.n)
+	local args = formatArgs(table.pack(...), "ERROR", levelInfo, getCallerLine())
+	local message = joinArgs(args)
 
 	if Logger.Traceback then
 		local traceback = debug.traceback(nil, 2)
