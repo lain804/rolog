@@ -199,5 +199,33 @@ return function(createLogger)
 		assert(string.find(message, "Logger.Formatter must return a string", 1, true))
 	end
 
+	do
+		local logger, calls = setup()
+		logger.Level = 100
+		logger.Levels.INFO.Prefix = "[DEFAULT]"
+		local options = {
+			Level = 20,
+			LineNumber = false,
+			Separator = " | ",
+			Levels = { INFO = { Prefix = "[FIRST]" } },
+		}
+		local first = logger.new(options)
+		local second = logger.new({ LineNumber = false })
+		first.info("one")
+		second.info("two")
+		logger.info("hidden")
+		equal(#calls, 2)
+		equal(calls[1].args[1], "[FIRST] | one")
+		equal(calls[2].args[1], "[INFO]")
+		equal(first.Levels.INFO.Level, 20)
+		equal(second.Level, 10)
+		equal(logger.Levels.INFO.Prefix, "[DEFAULT]")
+		first.Levels.INFO.Prefix = "[CHANGED]"
+		equal(options.Levels.INFO.Prefix, "[FIRST]")
+		equal(second.Levels.INFO.Prefix, "[INFO]")
+		equal(first.new().Levels.INFO.Prefix, "[INFO]")
+		assert(first ~= second and first.Levels ~= second.Levels)
+	end
+
 	print("All logger tests passed")
 end

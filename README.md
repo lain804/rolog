@@ -28,6 +28,27 @@ Logger.warn("Hello", "World")
 Logger.error("Hello", "World")
 ```
 
+## multiple loggers
+
+The module is a ready-to-use default logger. Use `Logger.new(options)` for
+independent instances, with the same dot-call methods as the default logger:
+
+```lua
+local network = Logger.new({ Level = Logger.Levels.INFO.Level })
+local database = Logger.new({ Separator = " | ", LineNumber = false })
+
+network.info("Connected")
+database.warn("Retrying query")
+```
+
+Each new logger starts from the built-in defaults, independently of changes to
+the default logger or other instances. Options use the configuration fields
+below. A `Levels` option merges per-level settings into a fresh level table:
+
+```lua
+local network = Logger.new({ Levels = { INFO = { Prefix = "[NETWORK]" } } })
+```
+
 ## configuration
 
 Set options directly on `Logger`. The default output remains the level prefix,
