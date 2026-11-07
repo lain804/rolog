@@ -16,6 +16,17 @@ Logger.warn("Hello", "World")
 Logger.error("Hello", "World")
 ```
 
+## tests
+
+Install the standalone [Luau CLI](https://github.com/luau-lang/luau/releases), then run:
+
+```sh
+python3 tests/run.py
+```
+
+You can also pass the path to the CLI: `python3 tests/run.py /path/to/luau`.
+The tests use Luau's debug library and mock Roblox output and task scheduling.
+
 **executors:**
 ```lua
 local Logger = loadstring(game:HttpGet("https://raw.githubusercontent.com/lain804/rolog/refs/heads/master/rolog.lua"))()

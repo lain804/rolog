@@ -20,8 +20,12 @@ local function shouldLog(levelInfo)
 end
 
 local function getCallerLine()
-	local callerInfo = debug.getinfo(3, "l")
-	return callerInfo and callerInfo.currentline
+	if not Logger.LineNumber then
+		return nil
+	end
+
+	local callerLine = debug.info(3, "l")
+	return callerLine and callerLine > 0 and callerLine or nil
 end
 
 local function addPrefixAndLine(args, levelInfo, callerLine)
