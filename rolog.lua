@@ -12,7 +12,11 @@ local Logger = {
 }
 
 local function prepend(t, value)
-	table.insert(t, 1, value)
+	for i = t.n, 1, -1 do
+		t[i + 1] = t[i]
+	end
+	t[1] = value
+	t.n = t.n + 1
 end
 
 local function shouldLog(levelInfo)
@@ -45,10 +49,10 @@ local function log(levelName, outputFn, callerLine, ...)
 		return
 	end
 
-	local args = { ... }
+	local args = table.pack(...)
 	addPrefixAndLine(args, levelInfo, callerLine)
 
-	outputFn(table.unpack(args))
+	outputFn(table.unpack(args, 1, args.n))
 end
 
 function Logger.debug(...)
@@ -70,14 +74,14 @@ function Logger.error(...)
 		return
 	end
 
-	local args = { ... }
+	local args = table.pack(...)
 	addPrefixAndLine(args, levelInfo, getCallerLine())
 
-	for i, value in args do
-		args[i] = tostring(value)
+	for i = 1, args.n do
+		args[i] = tostring(args[i])
 	end
 
-	local message = table.concat(args, " ")
+	local message = table.concat(args, " ", 1, args.n)
 
 	if Logger.Traceback then
 		local traceback = debug.traceback(nil, 2)

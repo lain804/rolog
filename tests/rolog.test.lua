@@ -60,5 +60,30 @@ return function(createLogger)
 		assert(string.find(calls[2].args[1], "\n", 1, true), "traceback should be appended")
 	end
 
+	for _, method in { "debug", "info", "warn", "error" } do
+		for _, prefix in { true, false } do
+			local logger, calls = setup()
+			logger.Traceback = false
+			logger.LineNumber = false
+			if not prefix then
+				for _, level in logger.Levels do
+					level.Prefix = nil
+				end
+			end
+			logger[method](nil, "middle", nil, false, nil)
+			if method == "error" then
+				equal(calls[1].args[1], (prefix and "[ERROR] " or "") .. "nil middle nil false nil")
+			else
+				local offset = prefix and 1 or 0
+				equal(calls[1].args.n, 5 + offset)
+				equal(calls[1].args[1 + offset], nil)
+				equal(calls[1].args[2 + offset], "middle")
+				equal(calls[1].args[3 + offset], nil)
+				equal(calls[1].args[4 + offset], false)
+				equal(calls[1].args[5 + offset], nil)
+			end
+		end
+	end
+
 	print("All logger tests passed")
 end
