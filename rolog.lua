@@ -8,7 +8,10 @@ local function new(options)
 		},
 
 		Traceback = true,
+		Timestamp = true,
+		TimestampFormat = "!%Y-%m-%dT%H:%M:%SZ",
 		LineNumber = true,
+		FunctionName = false,
 		Prefix = true,
 		Separator = nil,
 		Formatter = nil,
@@ -42,22 +45,31 @@ local function new(options)
 		return Logger.Level <= levelInfo.Level
 	end
 
-	local function getCallerLine()
-		if not Logger.LineNumber then
-			return nil
+	local function getCallerInfo()
+		if not Logger.LineNumber and not Logger.FunctionName then
+			return nil, nil
 		end
 
-		local callerLine = debug.info(3, "l")
-		return callerLine and callerLine > 0 and callerLine or nil
+		local callerLine, callerName = debug.info(3, "ln")
+		return Logger.LineNumber and callerLine and callerLine > 0 and callerLine or nil,
+			Logger.FunctionName and callerName and callerName ~= "" and callerName or nil
 	end
 
-	local function addPrefixAndLine(args, levelInfo, callerLine)
-		if Logger.LineNumber and callerLine then
+	local function addMetadata(args, levelInfo, callerLine, callerName, timestamp)
+		if callerLine then
 			prepend(args, ":" .. tostring(callerLine))
+		end
+
+		if callerName then
+			prepend(args, callerName .. "()")
 		end
 
 		if Logger.Prefix and levelInfo.Prefix then
 			prepend(args, levelInfo.Prefix)
+		end
+
+		if timestamp then
+			prepend(args, "[" .. timestamp .. "]")
 		end
 	end
 
@@ -69,47 +81,58 @@ local function new(options)
 		return table.concat(parts, Logger.Separator or " ")
 	end
 
-	local function formatArgs(args, levelName, levelInfo, callerLine)
+	local function formatArgs(args, levelName, levelInfo, callerLine, callerName)
+		local timestamp
+		if Logger.Timestamp then
+			timestamp = os.date(Logger.TimestampFormat)
+			assert(type(timestamp) == "string", "Logger.TimestampFormat must produce a string")
+		end
+
 		if Logger.Formatter then
 			local message = Logger.Formatter({
 				Level = levelName,
 				Prefix = Logger.Prefix and levelInfo.Prefix or nil,
+				Timestamp = timestamp,
 				LineNumber = callerLine,
+				FunctionName = callerName,
 				Message = joinArgs(args),
 			})
 			assert(type(message) == "string", "Logger.Formatter must return a string")
 			return table.pack(message)
 		end
 
-		addPrefixAndLine(args, levelInfo, callerLine)
+		addMetadata(args, levelInfo, callerLine, callerName, timestamp)
 		if Logger.Separator ~= nil then
 			return table.pack(joinArgs(args))
 		end
 		return args
 	end
 
-	local function log(levelName, outputFn, callerLine, ...)
+	local function log(levelName, outputFn, callerLine, callerName, ...)
 		local levelInfo = Logger.Levels[levelName]
 
 		if not shouldLog(levelInfo) then
 			return
 		end
 
-		local args = formatArgs(table.pack(...), levelName, levelInfo, callerLine)
+		local args = formatArgs(table.pack(...), levelName, levelInfo, callerLine, callerName)
 
 		outputFn(table.unpack(args, 1, args.n))
 	end
 
 	function Logger.debug(...)
-		log("DEBUG", print, getCallerLine(), ...)
+		local callerLine, callerName = getCallerInfo()
+		log("DEBUG", print, callerLine, callerName, ...)
 	end
 
 	function Logger.info(...)
-		log("INFO", print, getCallerLine(), ...)
+		local callerLine, callerName = getCallerInfo()
+		log("INFO", print, callerLine, callerName, ...)
 	end
 
 	function Logger.warn(...)
-		log("WARN", warn, getCallerLine(), ...)
+		local callerLine, callerName = getCallerInfo()
+		log("WARN", warn, callerLine, callerName, ...)
 	end
 
 	function Logger.error(...)
@@ -119,7 +142,8 @@ local function new(options)
 			return
 		end
 
-		local args = formatArgs(table.pack(...), "ERROR", levelInfo, getCallerLine())
+		local callerLine, callerName = getCallerInfo()
+		local args = formatArgs(table.pack(...), "ERROR", levelInfo, callerLine, callerName)
 		local message = joinArgs(args)
 
 		if Logger.Traceback then

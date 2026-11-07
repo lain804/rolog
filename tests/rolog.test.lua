@@ -3,7 +3,7 @@ return function(createLogger)
 		assert(actual == expected, "expected " .. tostring(expected) .. ", got " .. tostring(actual))
 	end
 
-	local function setup()
+	local function setup(useDefaults)
 		local calls = {}
 		local function capture(kind, ...)
 			table.insert(calls, { kind = kind, args = table.pack(...) })
@@ -19,7 +19,12 @@ return function(createLogger)
 				end,
 			},
 		}, { __index = getfenv() })
-		return createLogger(environment), calls, environment
+		local logger = createLogger(environment)
+		-- Keep legacy formatting assertions independent of the new default timestamp.
+		if not useDefaults then
+			logger.Timestamp = false
+		end
+		return logger, calls, environment
 	end
 
 	-- Use the actual Luau debug library: Roblox does not have debug.getinfo.
@@ -205,12 +210,13 @@ return function(createLogger)
 		logger.Levels.INFO.Prefix = "[DEFAULT]"
 		local options = {
 			Level = 20,
+			Timestamp = false,
 			LineNumber = false,
 			Separator = " | ",
 			Levels = { INFO = { Prefix = "[FIRST]" } },
 		}
 		local first = logger.new(options)
-		local second = logger.new({ LineNumber = false })
+		local second = logger.new({ LineNumber = false, Timestamp = false })
 		first.info("one")
 		second.info("two")
 		logger.info("hidden")
@@ -225,6 +231,94 @@ return function(createLogger)
 		equal(second.Levels.INFO.Prefix, "[INFO]")
 		equal(first.new().Levels.INFO.Prefix, "[INFO]")
 		assert(first ~= second and first.Levels ~= second.Levels)
+	end
+
+	for _, method in { "debug", "info", "warn", "error" } do
+		local logger, calls, environment = setup(true)
+		equal(logger.Timestamp, true)
+		equal(logger.new().Timestamp, true)
+		logger.Traceback = false
+		logger.FunctionName = true
+		local dateCalls = 0
+		environment.os = {
+			date = function(format)
+				equal(format, "!%Y-%m-%dT%H:%M:%SZ")
+				dateCalls = dateCalls + 1
+				return "2026-11-07T12:34:56Z"
+			end,
+		}
+		local function caller()
+			local expectedLine = debug.info(1, "l") + 1
+			logger[method]("hello")
+			return expectedLine
+		end
+		local line = caller()
+		equal(dateCalls, 1)
+		if method == "error" then
+			equal(calls[1].args[1], "[2026-11-07T12:34:56Z] [ERROR] caller() :" .. line .. " hello")
+		else
+			equal(calls[1].args[1], "[2026-11-07T12:34:56Z]")
+			equal(calls[1].args[2], logger.Levels[string.upper(method)].Prefix)
+			equal(calls[1].args[3], "caller()")
+			equal(calls[1].args[4], ":" .. line)
+			equal(calls[1].args[5], "hello")
+		end
+		logger.Level = 100
+		caller()
+		equal(dateCalls, 1)
+	end
+
+	do
+		local logger, calls, environment = setup(true)
+		local formats = {}
+		environment.os = {
+			date = function(format)
+				table.insert(formats, format)
+				return "12:34:56"
+			end,
+		}
+		logger.TimestampFormat = "!%H:%M:%S"
+		logger.FunctionName = true
+		logger.LineNumber = false
+		local entries = {}
+		logger.Formatter = function(entry)
+			table.insert(entries, entry)
+			return entry.Message
+		end
+		local function caller()
+			logger.info("hello")
+		end
+		caller()
+		equal(formats[1], "!%H:%M:%S")
+		equal(entries[1].Timestamp, "12:34:56")
+		equal(entries[1].FunctionName, "caller")
+		equal(entries[1].LineNumber, nil)
+		logger.Timestamp = false
+		logger.FunctionName = false
+		environment.debug = {}
+		caller()
+		equal(#formats, 1)
+		equal(entries[2].Timestamp, nil)
+		equal(entries[2].FunctionName, nil)
+		equal(calls[2].args[1], "hello")
+	end
+
+	do
+		local logger, calls, environment = setup(true)
+		logger.FunctionName = true
+		logger.LineNumber = false
+		logger.Timestamp = false
+		environment.debug = { info = function() return -1, "" end }
+		logger.info("anonymous")
+		equal(calls[1].args.n, 2)
+		equal(calls[1].args[2], "anonymous")
+	end
+
+	do
+		local logger, calls = setup(true)
+		logger.LineNumber = false
+		logger.info("real clock")
+		assert(string.match(calls[1].args[1], "^%[%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%dZ%]$"))
 	end
 
 	print("All logger tests passed")
