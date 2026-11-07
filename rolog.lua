@@ -1,3 +1,5 @@
+local files = {}
+
 local function new(options)
 	local Logger = {
 		Levels = {
@@ -15,6 +17,8 @@ local function new(options)
 		Prefix = true,
 		Separator = nil,
 		Formatter = nil,
+		Output = "console",
+		FilePath = "rolog.log",
 		Level = 10,
 	}
 
@@ -108,6 +112,46 @@ local function new(options)
 		return args
 	end
 
+	local function writeToFile(message)
+		local writer = writefile
+		assert(type(writer) == "function", "File logging requires writefile in this environment")
+		local path = Logger.FilePath
+		assert(type(path) == "string" and path ~= "", "Logger.FilePath must be a non-empty string")
+
+		local file = files[path]
+		if not file then
+			file = { Content = "", Writing = false }
+			files[path] = file
+		end
+
+		-- Share history and serialize yielding writes across instances using this path.
+		while file.Writing do
+			task.wait()
+		end
+		local content = file.Content .. message .. "\n"
+		file.Writing = true
+		local success, messageOrError = pcall(writer, path, content)
+		if success then
+			file.Content = content
+		end
+		file.Writing = false
+		if not success then
+			error(messageOrError, 0)
+		end
+	end
+
+	local function emit(args, outputFn)
+		local output = Logger.Output
+		assert(output == "console" or output == "file" or output == "both",
+			"Logger.Output must be console, file, or both")
+		if output ~= "console" then
+			writeToFile(joinArgs(args))
+		end
+		if output ~= "file" then
+			outputFn(table.unpack(args, 1, args.n))
+		end
+	end
+
 	local function log(levelName, outputFn, callerLine, callerName, ...)
 		local levelInfo = Logger.Levels[levelName]
 
@@ -117,7 +161,7 @@ local function new(options)
 
 		local args = formatArgs(table.pack(...), levelName, levelInfo, callerLine, callerName)
 
-		outputFn(table.unpack(args, 1, args.n))
+		emit(args, outputFn)
 	end
 
 	function Logger.debug(...)
@@ -151,8 +195,10 @@ local function new(options)
 			message = message .. "\n" .. traceback
 		end
 
-		task.spawn(function()
-			error(message, 0)
+		emit(table.pack(message), function(errorMessage)
+			task.spawn(function()
+				error(errorMessage, 0)
+			end)
 		end)
 	end
 

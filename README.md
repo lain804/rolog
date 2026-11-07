@@ -71,6 +71,8 @@ before its line number:
 | `Separator` | `nil` | A string used to join prefixes, lines, and arguments. `nil` preserves native argument forwarding to `print`/`warn`; error messages use a space. An empty string joins without spacing. |
 | `Formatter` | `nil` | Optional `function(entry): string` that returns the entire message layout for every level. |
 | `Traceback` | `true` | Append the caller's traceback to error messages, after formatting. |
+| `Output` | `"console"` | `"console"`, `"file"`, or `"both"`. File output requires the environment's `writefile` function. |
+| `FilePath` | `"rolog.log"` | File path passed to `writefile`, relative to the host environment's workspace. Parent directories must already exist. |
 
 ```lua
 Logger.Timestamp = false
@@ -86,9 +88,10 @@ Logger.info("Hello", "World") -- Hello | World
 When `Separator` or `Formatter` is set, arguments are converted with `tostring`,
 including `nil` and `false`, in their original order. Otherwise, `debug`, `info`,
 and `warn` forward the original values, preserving Roblox's object inspection.
-`error` always builds a string and raises it in a spawned task, so it does not
-stop the calling thread. `Traceback = false` removes the appended caller trace;
-Roblox may still display the spawned task's own error stack.
+`error` always builds a string. When console output is enabled, it raises that
+string in a spawned task, so the console error does not stop the calling thread.
+`Traceback = false` removes the appended caller trace; Roblox may still display
+the spawned task's own error stack.
 
 A custom formatter receives these fields:
 
@@ -117,6 +120,47 @@ The formatter replaces the default prefix/line layout. Filtered messages do not
 invoke it. Set `Logger.Formatter = nil` and `Logger.Separator = nil` to restore
 native argument forwarding.
 
+## file output
+
+Use file output only in environments that provide `writefile(path, contents)`:
+
+```lua
+local fileLogger = Logger.new({
+	Output = "file",
+	FilePath = "session.log",
+	FunctionName = true,
+})
+
+local function connect()
+	fileLogger.info("Connected")
+end
+connect()
+
+fileLogger.Output = "both" -- send subsequent logs to the file and console
+fileLogger.warn("Retrying")
+```
+
+Every emitted message is written immediately with a trailing newline, using the
+same formatting options and custom formatter as console output. File output
+stringifies values and uses a space when `Separator` is `nil`. Error records
+include the caller traceback when `Traceback` is enabled; file-only mode does
+not spawn a console error.
+
+Because `writefile` replaces file contents, the logger keeps this module
+session's history in memory and rewrites it on every message. **The first write
+to each path replaces any existing file.** Choose a new path to keep a previous
+session's logs. History grows with the log size. Instances from the same loaded
+module that use the same path share this history, and yielding writes to that
+path are serialized. Different paths have separate histories. Changing a path
+and switching back resumes its history; outside changes to the file are not
+read back. Only `writefile` is required from the host's filesystem API.
+
+Default console logging works without `writefile`. Explicit file output raises
+a clear error if `writefile` is unavailable or the path is empty. Filesystem
+errors propagate to the caller, including for `Logger.error`; failed writes
+do not add the failed record to the in-memory history. In `"both"` mode the
+file is written before console output. Filtered messages do not write files.
+
 ## tests
 
 Install the standalone [Luau CLI](https://github.com/luau-lang/luau/releases), then run:
@@ -126,4 +170,6 @@ python3 tests/run.py
 ```
 
 You can also pass the path to the CLI: `python3 tests/run.py /path/to/luau`.
-The tests use Luau's debug library and mock Roblox output and task scheduling.
+The tests use Luau's debug library and mock Roblox output, task scheduling, and
+the host's filesystem API. They cover isolated instances, timestamps, caller
+names, formatting, filtering, file failures, and concurrent writes.

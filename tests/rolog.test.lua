@@ -321,5 +321,162 @@ return function(createLogger)
 		assert(string.match(calls[1].args[1], "^%[%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%dZ%]$"))
 	end
 
+	for _, output in { "file", "both" } do
+		for _, method in { "debug", "info", "warn", "error" } do
+			local logger, calls, environment = setup()
+			logger.Output = output
+			logger.FilePath = "test.log"
+			logger.LineNumber = false
+			logger.Traceback = false
+			logger.Separator = " | "
+			local content = "previous session\n"
+			local writes = 0
+			environment.writefile = function(path, data)
+				equal(path, "test.log")
+				content = data
+				writes = writes + 1
+			end
+			logger[method]("hello", nil, false, nil)
+			local prefix = logger.Levels[string.upper(method)].Prefix
+			equal(content, prefix .. " | hello | nil | false | nil\n")
+			logger[method]()
+			equal(content, prefix .. " | hello | nil | false | nil\n" .. prefix .. "\n")
+			equal(writes, 2)
+			equal(#calls, output == "file" and 0 or 2)
+			if output == "both" then
+				equal(calls[1].kind, method == "error" and "error" or (method == "warn" and "warn" or "print"))
+				equal(calls[1].args[1], prefix .. " | hello | nil | false | nil")
+			end
+		end
+	end
+
+	do
+		local logger, calls, environment = setup()
+		local storage = {}
+		environment.writefile = function(path, data) storage[path] = data end
+		local options = { Output = "file", FilePath = "shared.log", Timestamp = false, LineNumber = false, Prefix = false }
+		local first = logger.new(options)
+		local second = logger.new(options)
+		first.info("first")
+		second.warn("second")
+		equal(storage["shared.log"], "first\nsecond\n")
+		first.FilePath = "other.log"
+		first.info("other")
+		equal(storage["other.log"], "other\n")
+		first.FilePath = "shared.log"
+		first.info("third")
+		equal(storage["shared.log"], "first\nsecond\nthird\n")
+		equal(#calls, 0)
+	end
+
+	do
+		local logger, calls, environment = setup(true)
+		logger.Output = "both"
+		logger.FunctionName = true
+		environment.os = { date = function() return "timestamp" end }
+		local content
+		environment.writefile = function(_, data) content = data end
+		logger.Formatter = function(entry)
+			equal(entry.FunctionName, "caller")
+			equal(entry.Timestamp, "timestamp")
+			return entry.Timestamp .. " " .. entry.FunctionName .. " " .. entry.Message
+		end
+		local function caller()
+			logger.error("hello")
+		end
+		caller()
+		equal(content, calls[1].args[1] .. "\n")
+		assert(string.sub(content, 1, 23) == "timestamp caller hello\n", "file output includes formatted message and traceback")
+	end
+
+	do
+		local logger, calls, environment = setup()
+		logger.Output = "file"
+		environment.writefile = false
+		local success, message = pcall(logger.info, "hello")
+		equal(success, false)
+		assert(string.find(message, "File logging requires writefile", 1, true))
+		equal(#calls, 0)
+		logger.Level = 100
+		logger.Timestamp = true
+		environment.os = { date = function() error("filtered logs must not read the clock") end }
+		logger.debug("hidden")
+		logger.info("hidden")
+		logger.warn("hidden")
+		logger.error("hidden")
+		equal(#calls, 0)
+	end
+
+	for _, path in { "", false, 123 } do
+		local logger, calls, environment = setup()
+		logger.Output = "file"
+		logger.FilePath = path
+		environment.writefile = function() error("invalid paths must not be written") end
+		local success, message = pcall(logger.info, "hello")
+		equal(success, false)
+		assert(string.find(message, "Logger.FilePath must be a non-empty string", 1, true))
+		equal(#calls, 0)
+	end
+
+	do
+		local logger, calls = setup()
+		logger.Output = "invalid"
+		local success, message = pcall(logger.info, "hello")
+		equal(success, false)
+		assert(string.find(message, "Logger.Output must be console, file, or both", 1, true))
+		equal(#calls, 0)
+	end
+
+	do
+		local logger, _, environment = setup()
+		logger.Output = "file"
+		logger.LineNumber = false
+		logger.Prefix = false
+		local writes = 0
+		local content
+		environment.writefile = function(_, data)
+			writes = writes + 1
+			if writes == 2 then error("disk full", 0) end
+			content = data
+		end
+		logger.info("first")
+		local success, message = pcall(logger.info, "failed")
+		equal(success, false)
+		equal(message, "disk full")
+		equal(content, "first\n")
+		logger.info("retry")
+		equal(content, "first\nretry\n")
+	end
+
+	-- Some host filesystem functions yield; concurrent loggers must not lose records.
+	do
+		local logger, calls, environment = setup()
+		local content
+		environment.writefile = function(_, data)
+			if data == "first\n" then coroutine.yield("writing") end
+			content = data
+		end
+		environment.task.wait = function() coroutine.yield("waiting") end
+		local options = { Output = "file", Timestamp = false, LineNumber = false, Prefix = false }
+		local firstLogger = logger.new(options)
+		local secondLogger = logger.new(options)
+		local first = coroutine.create(function() firstLogger.info("first") end)
+		local second = coroutine.create(function() secondLogger.info("second") end)
+		local success, state = coroutine.resume(first)
+		equal(success, true)
+		equal(state, "writing")
+		success, state = coroutine.resume(second)
+		equal(success, true)
+		equal(state, "waiting")
+		-- Configuration changes apply to later calls, not a write already in progress.
+		firstLogger.Output = "console"
+		equal(coroutine.resume(first), true)
+		equal(coroutine.resume(second), true)
+		equal(coroutine.status(first), "dead")
+		equal(coroutine.status(second), "dead")
+		equal(content, "first\nsecond\n")
+		equal(#calls, 0)
+	end
+
 	print("All logger tests passed")
 end
